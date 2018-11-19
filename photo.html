@@ -1,0 +1,293 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title>Photo</title>
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+    }
+
+    html,
+    body,
+    #container {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #container {
+      position: relative;
+      background: url(image/BG.jpg);
+	background-size:cover;
+    }
+
+    .imgElement {
+      width: 300px;
+      /* height: 300px; */
+    }
+
+    #imgShow {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate3d(-50%, -50%, 0);
+      background-size: cover;
+      z-index: 10000;
+    }
+
+    #controls {
+      position: absolute;
+      width: 100%;
+      height: 20px;
+      bottom: 15px;
+      text-align: center;
+      z-index: 10000000000;
+      line-height: 20px;
+    }
+
+    button {
+      width: 50px;
+      height: 20px;
+      font-size: 15px;
+      cursor: pointer;
+      margin: 0 15px 15px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container">
+    <div id="imgShow"></div>
+    <div id="controls">
+      <button id="table">table</button>
+      <button id="sphere">sphere</button>
+      <button id="helix">helix</button>
+      <button id="grid">grid</button>
+    </div>
+  </div>
+  <script src="three.js"></script>
+  <script src="tween.min.js"></script>
+  <script src="TrackballControls.js"></script>
+  <script src="CSS3DRenderer.js"></script>
+  <script src="stats.min.js"></script>
+  <script>
+    // 全局变量
+    var container = document.getElementById("container");
+    var imgShow = document.getElementById("imgShow");
+    var scene, // 场景
+      camera, // 相机
+      renderer, // 渲染器
+      controls, // 控制器
+      stats; // 状态信息(fps,ping)
+    var objects = []; // 对象
+    var targets = { table: [], sphere: [], helix: [], grid:[] };
+    var config = {
+      PhotoNum: 20, //照片数量
+      PhotoUrl: "image/#.jpg", //照片路径
+      display: {
+        table: {
+          width: 3000,
+          height: 3000,
+          max_item: 7
+        }
+      }
+    };
+    // 初始化函数
+    init();
+    animate();
+    bindEvent();
+
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth,
+        window.innerHeight,
+        1,
+        10000
+      );
+      camera.position.set(0, 0, 2000);
+      camera.lookAt(0, 0, 0);
+      // 渲染器
+      renderer = new THREE.CSS3DRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.getElementById("container").appendChild(renderer.domElement);
+
+      // 控制器
+      controls = new THREE.TrackballControls(camera, renderer.domElement);
+      controls.rotateSpeed = 0.5;
+      controls.mixDistance = 1000;
+      controls.maxDistance = 6000;
+      controls.addEventListener("change", render);
+
+      // 性能监控器
+      stats = new Stats();
+      container.appendChild(stats.domElement);
+
+      // table
+      var tableConfig = config.display.table;
+      for (var i = 0, len = config["PhotoNum"]; i < len; i++) {
+        var img = document.createElement("img");
+        img.className = "imgElement";
+        img.src = "image/"+(i+1)+".jpg";
+        // img.style.width = (Math.random()*300+300) + 'px'
+        img.addEventListener("click", showImg, false);
+        // 初始化位置
+        var object = new THREE.CSS3DObject(img);
+        object.position.x = Math.random() * 4000 - 2000;
+        object.position.y = Math.random() * 4000 - 2000;
+        object.position.z = Math.random() * 4000 - 2000;
+        scene.add(object);
+        objects.push(object);
+
+        // 目标位置
+        var object = new THREE.Object3D();
+        object.position.x =
+          -tableConfig.width / 2 +
+          (tableConfig.width / tableConfig.max_item) *
+          (i % tableConfig.max_item);
+        object.position.y =
+          600 - parseInt(1 + i / tableConfig.max_item) * 200;
+        object.position.z = 0;
+        targets.table.push(object);
+      }
+
+      // sphere
+      var vector = new THREE.Vector3();
+      for (let i = 0, len = objects.length; i < len; i++) {
+        var phi = Math.acos(-1 + (2 * i) / len);
+        var theta = Math.sqrt(len * Math.PI) * phi;
+        var object = new THREE.Object3D();
+        object.position.setFromSphericalCoords(800, phi, theta);
+        vector.copy(object.position).multiplyScalar(2);
+        object.lookAt(vector);
+        targets.sphere.push(object);
+      }
+
+      // helix
+      var vector = new THREE.Vector3();
+      for (var i = 0, l = objects.length; i < l; i++) {
+        var theta = i * 0.175 + Math.PI;
+        var y = - (i * 8) + 450;
+        var object = new THREE.Object3D();
+        object.position.setFromCylindricalCoords(900, theta, y);
+        vector.x = object.position.x * 2;
+        vector.y = object.position.y;
+        vector.z = object.position.z * 2;
+        object.lookAt(vector);
+        targets.helix.push(object);
+      }
+
+      //grid
+      for (var i = 0; i < objects.length; i++) {
+        var object = new THREE.Object3D();
+        object.position.x = ((i % 5) * 400) - 800;
+        object.position.y = (- (Math.floor(i / 5) % 5) * 400) + 800;
+        object.position.z = (Math.floor(i / 25)) * 1000 - 2000;
+        targets.grid.push(object);
+      }
+
+
+      
+
+      transform(targets.table, 2000);
+      window.addEventListener("resize", onWindowResize, false);
+    }
+
+    function transform(targets, duration) {
+      TWEEN.removeAll();
+      for (let i = 0, len = objects.length; i < len; i++) {
+        let object = objects[i];
+        let target = targets[i];
+        new TWEEN.Tween(object.position)
+          .to(
+            {
+              x: target.position.x,
+              y: target.position.y,
+              z: target.position.z
+            },
+            Math.random() * duration + duration
+          )
+          .easing(TWEEN.Easing.Exponential.InOut)
+          .start();
+        new TWEEN.Tween(object.rotation)
+          .to(
+            {
+              x: target.rotation.x,
+              y: target.rotation.y,
+              z: target.rotation.z
+            },
+            Math.random() * duration + duration
+          )
+          .easing(TWEEN.Easing.Exponential.InOut)
+          .start();
+      }
+      new TWEEN.Tween(this)
+        .to({},duration * 2)
+        .onUpdate(render)
+        .start();
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      render();
+    }
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      TWEEN.update();
+      stats.update();
+      render();
+    }
+
+    //渲染
+    function render() {
+      renderer.render(scene, camera);
+    }
+    
+    function showImg() {
+      let width = parseFloat(getComputedStyle(this, null).width);
+      let height = parseFloat(getComputedStyle(this, null).height);
+      imgShow.style.width = 2 * width + "px";
+      imgShow.style.height = 2 * height + "px";
+      console.log(this.src)
+      imgShow.style.backgroundImage = "url(" + this.src + ")";
+      // imgShow.style.background = "red";
+    }
+
+    //绑定事件
+    function bindEvent() {
+      var tablBt = document.getElementById('table');
+      var sphereBt = document.getElementById('sphere');
+      var helixBt = document.getElementById('helix');
+      var gridBt = document.getElementById('grid');
+      tablBt.addEventListener('click', function () {
+        transform(targets.table, 2000);
+      }, false)
+
+      sphereBt.addEventListener('click', function () {
+        transform(targets.sphere, 2000)
+      }, false)
+
+      helixBt.addEventListener('click', function () {
+        transform(targets.helix, 2000)
+      }, false)
+
+      gridBt.addEventListener('click',function(){
+        transform(targets.grid, 2000)
+      })
+    }
+
+  </script>
+</body>
+
+</html>
